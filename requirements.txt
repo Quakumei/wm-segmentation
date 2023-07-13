@@ -3,3 +3,8 @@ black
 
 # Production
 opencv-python
+click
+keras
+tensorflow
+tensorflow_datasets
+tqdm
