@@ -2,12 +2,9 @@
 
 import os
 import glob
-import typing as tp
-
 
 import numpy as np
 import cv2
-import tensorflow as tf
 import tensorflow_datasets as tfds
 
 _DESCRIPTION = """
@@ -36,11 +33,11 @@ class WatermarkSubtitlesDatasetSegmentation(tfds.core.GeneratorBasedBuilder):
                 {
                     "image": tfds.features.Image(
                         shape=(None, None, 3),
-                        dtype=tf.uint8,
+                        dtype=np.uint8,
                     ),
                     "target_mask": tfds.features.Image(
                         shape=(None, None, 1),
-                        dtype=tf.bool,
+                        dtype=np.uint8,
                     ),
                 }
             ),
@@ -55,16 +52,20 @@ class WatermarkSubtitlesDatasetSegmentation(tfds.core.GeneratorBasedBuilder):
         data_dir = "data/generated"
 
         return {
-            "train": self._generate_examples(f"{data_dir}/train"),
-            "validate": self._generate_examples(f"{data_dir}/validate"),
+            "train": self._generate_examples(f"{data_dir}/train", count=1000),
+            "validate": self._generate_examples(f"{data_dir}/validate", count=500),
         }
 
-    def _generate_examples(self, folder: str):
+    def _generate_examples(self, folder: str, count: int = None):
         """Yields examples."""
-        for img_path in glob.glob(f"{folder}/*.jpg"):
+        for img_idx, img_path in enumerate(glob.glob(f"{folder}/*.jpg")):
             basename = os.path.basename(img_path)
 
             image = cv2.imread(img_path).astype(np.uint8)
-            segmentation_mask = f"{folder}/{basename}.npz"
+            segmentation_mask = f"{folder}/{basename.replace('.jpg', '.npz')}"
+            segmentation_mask = np.load(segmentation_mask)["mask"].astype(np.uint8)
+            segmentation_mask = np.expand_dims(segmentation_mask, axis=-1)
 
             yield basename, {"image": image, "target_mask": segmentation_mask}
+            if count is not None and img_idx > count:
+                break

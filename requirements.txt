@@ -7,5 +7,6 @@ click
 keras
 tensorflow
 tensorflow_datasets
+tensorboard
 tqdm
 Pillow==9.5.0
