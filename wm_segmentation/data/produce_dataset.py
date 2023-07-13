@@ -9,7 +9,7 @@ import itertools
 import cv2
 import tqdm
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 
 def read_images_from_folder(
@@ -102,13 +102,64 @@ def produce_watermarked_image(
     return watermarked_image, mask
 
 
+def produce_subtitled_image(
+    image: np.ndarray,
+    subtitle_text: str,
+    subtitle_size: float,  # relative to image size
+    subtitle_color: tp.Tuple[int, int, int],
+    subtitle_position: tp.Literal["top", "bottom"] = "bottom",
+    subtitle_font: str = "data/source/fonts/Roboto-Regular.ttf",
+):
+    image = Image.fromarray(image)
+    draw = ImageDraw.Draw(image)
+
+    width, height = image.size
+    subtitle_font_size = int(min(width, height) * subtitle_size)
+    subtitle_font = ImageFont.truetype(subtitle_font, size=subtitle_font_size)
+    text_width, text_height = draw.textsize(subtitle_text, font=subtitle_font)
+    if subtitle_position == "bottom":
+        position_x = (width - text_width) // 2
+        position_y = height - text_height - 10  # Adjust the position as desired
+    elif subtitle_position == "top":
+        position_x = (width - text_width) // 2
+        position_y = 10  # Adjust the position as desired
+    else:
+        raise ValueError(
+            "Invalid subtitle position. Valid options are: 'top', 'bottom'."
+        )
+
+    # Draw the subtitle text on the image
+    draw.text(
+        (position_x, position_y), subtitle_text, font=subtitle_font, fill=subtitle_color
+    )
+
+    image = np.array(image)
+
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    mask = Image.fromarray(mask)
+    draw_mask = ImageDraw.Draw(mask)
+    draw_mask.text((position_x, position_y), subtitle_text, font=subtitle_font, fill=1)
+    mask = np.array(mask)
+
+    assert mask.shape == image.shape[:2]
+
+    return image, mask
+
+
 def produce_dataset(
     source_images_dir: str,
     watermarks_dir: str,
     subtitles_file: str,
     output_dir: str,
-    watermark_transparencies: tp.List[float] = [0.2, 0.7, 1.0],
-    watermark_sizes: tp.List[float] = [0.1, 0.2, 0.3],  # relative to image size
+    watermark_transparencies: tp.List[float] = [0.7, 0.9, 1.0],
+    watermark_sizes: tp.List[float] = [0.3, 0.5, 0.7],  # relative to image size
+    subtitles_sizes: tp.List[float] = [0.03, 0.05],  # relative to image size
+    subtitles_colors: tp.List[tp.Tuple[int, int, int]] = [
+        (255, 255, 255),
+        (0, 255, 255),
+        (255, 255, 0),
+    ],
+    produce_masks_jpg: bool = False,
 ):
     """Produce dataset for training and testing"""
     # 1. Create output dir
@@ -144,14 +195,27 @@ def produce_dataset(
 
                 cv2.imwrite(output_filepath, watermarked_image)
                 np.savez_compressed(output_filepath.replace(".jpg", ".npz"), mask=mask)
-
-                # TODO: remove this
-                cv2.imwrite(output_filepath.replace(".jpg", ".mask.jpg"), mask * 255)
-            pass
+                if produce_masks_jpg:
+                    cv2.imwrite(
+                        output_filepath.replace(".jpg", ".mask.jpg"), mask * 255
+                    )
 
         # 4.2 Apply subtitles
         for i, subtitle in enumerate(subtitles):
-            # 4.2.1 Apply subtitle
+            for size, color in itertools.product(subtitles_sizes, subtitles_colors):
+                subtitled_image, mask = produce_subtitled_image(
+                    image=image,
+                    subtitle_text=subtitle,
+                    subtitle_size=size,
+                    subtitle_color=color,
+                )
 
-            # 4.2.2 Save image
-            pass
+                output_filename = f"sub{i}_s{size}_c{color}_{os.path.basename(image_filename)}"  # blablabla.jpg
+                output_filepath = os.path.join(output_dir, output_filename)
+
+                cv2.imwrite(output_filepath, subtitled_image)
+                np.savez_compressed(output_filepath.replace(".jpg", ".npz"), mask=mask)
+                if produce_masks_jpg:
+                    cv2.imwrite(
+                        output_filepath.replace(".jpg", ".mask.jpg"), mask * 255
+                    )
