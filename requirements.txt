@@ -10,3 +10,9 @@ tensorflow_datasets
 tensorboard
 tqdm
 Pillow==9.5.0
+
+# Inpaint
+pyyaml
+imagio
+torch
+torchvision

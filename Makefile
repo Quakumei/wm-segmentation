@@ -31,3 +31,9 @@ train:
 
 run_tensorboard:
 	tensorboard --logdir logs
+
+INPUT_FOLDER=input
+OUTPUT_FOLDER=output
+infer_folder:
+	# For each file in the input folder, run inference and save the output in the output folder
+	$(PYTHON) -m wm_segmentation.inference.inference_segmentation -r 256 --from-folder input -o output
